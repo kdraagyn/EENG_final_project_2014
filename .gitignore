@@ -1,0 +1,13 @@
+# Code Warrior directories #
+###########################
+finalProject/bin
+finalProject/cmd
+finalProject/finalProject_Data
+finalProject/prm
+
+# Code Warrior Project Files #
+##############################
+*.hwl
+*.mem
+*.mcp
+*.ini
