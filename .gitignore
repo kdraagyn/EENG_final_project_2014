@@ -11,3 +11,8 @@ finalProject/prm
 *.mem
 *.mcp
 *.ini
+
+# Sublime Configuration Files #
+###############################
+*.sublime-project
+*.sublime-workspace
