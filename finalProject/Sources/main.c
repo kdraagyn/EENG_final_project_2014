@@ -13,21 +13,35 @@
 #define RECORD       3
 #define PLAYBACK     4
 
+#define NUMBER_OF_SERVOS	2
+#define NUMBER_OF_DC_MOROTS	1
+#define CLOCK_FACTOR 3
+#define CLOCK_FACTORED_PERIOD 333
+#define PWM_PERIOD 20
+
 const unsigned int DATA_ARRAY_SIZE = 100;
 
-struct position
+typedef struct 
 {
-	unsigned int servo_1;	// duty cycle for PWM
-	unsigned int servo_2;	// duty cycle for PWM
-	unsigned int dc_motor;	// position due to feedback control (encoder)
-};
+	char HiorLo;
+	int HiCnt;
+	int LoCnt;
+	char pin;
+} pwmOutput;
+
+typedef struct 
+{
+	pwmOutput servo_1;
+	pwmOutput servo_2;
+	pwmOutput dc_0;
+	pwmOutput dc_1;
+} position;
 
 char STATE;
 
+
 // PWM output compare variables
-char HiorLo0, HiorLo1, HiorLo2, HiorLo3, HiorLo4, HiorLo5, HiorLo6, HiorLo7;
-int HiCnt0, HiCnt1, HiCnt2, HiCnt3, HiCnt4, HiCnt5, HiCnt6, HiCnt7;
-int LoCnt0, LoCnt1, LoCnt2, LoCnt3, LoCnt4, LoCnt5, LoCnt6, LoCnt7;
+pwmOutput output_0, output_1, output_2, output_3, output_4, output_5, output_6, output_7, output_8;
 
 // Struct to hold all motor position data
 // position pathData[DATA_ARRAY_SIZE];
@@ -103,91 +117,128 @@ void setup_output_capture(char pin, int compare_time, char interrupts, char comp
 	 * 		1 	0 	clear OCn pin to 0 	TCTL_SET_LOW
 	 * 		1 	1 	set OCn pin to HIGH  TCTL_SET_HIGH
 	 */
-	if (pin && PT0)
+	if (pin & PT0)
 	{
-		TC0 = TCNT + 10;
-		while(!(TFLG1 & pin)) // wait until CnF flag is set
+		TCTL2 |= TCTL_SET_LOW;		// Make sure first output compare sets output to low
+		TC0 = TCNT + 10;			// Wait untill outpu pin is set low
+		while(!(TFLG1 & pin)); // wait until CnF flag is set
 		
-		TC0 = compare_time;
-		TCTL2 |= compare_action;
+		TC0 = compare_time;			// Set the output compare time
+		TCTL2 |= compare_action;	// Set the output compare action
 	}
 	
-	if (pin && PT1)
+	if (pin & PT1)
 	{
-		TC1 = TCNT + 10;
-		while(!(TFLG1 & pin)) // wait until CnF flag is set
+		TCTL2 |= TCTL_SET_LOW << 2;		// Make sure first output compare sets output to low
+		TC1 = TCNT + 10;			// Wait untill outpu pin is set low
+		while(!(TFLG1 & pin)); // wait until CnF flag is set
 		
-		TC1 = compare_time;
-		TCTL2 |= compare_action << 2;
+		TC1 = compare_time;			// Set the output compare time
+		TCTL2 |= compare_action << 2;	// Set the output compare action
 	}
 	
-	if (pin && PT2)
+	if (pin & PT2)
 	{
-		TC2 = TCNT + 10;
-		while(!(TFLG1 & pin)) // wait until CnF flag is set
+		TCTL2 |= TCTL_SET_LOW << 4;		// Make sure first output compare sets output to low
+		TC2 = TCNT + 10;			// Wait untill outpu pin is set low
+		while(!(TFLG1 & pin)); // wait until CnF flag is set
 		
-		TC2 = compare_time;
-		TCTL2 |= compare_action << 4;
+		TC2 = compare_time;			// Set the output compare time
+		TCTL2 |= compare_action << 4;	// Set the output compare action
 	}
 	
-	if (pin && PT3)
+	if (pin & PT3)
 	{
-		TC3 = TCNT + 10;
-		while(!(TFLG1 & pin)) // wait until CnF flag is set
+		TCTL2 |= TCTL_SET_LOW << 6;		// Make sure first output compare sets output to low
+		TC3 = TCNT + 10;			// Wait untill outpu pin is set low
+		while(!(TFLG1 & pin)); // wait until CnF flag is set
 		
-		TC3 = compare_time;
-		TCTL2 |= compare_action << 6;
+		TC3 = compare_time;			// Set the output compare time
+		TCTL2 |= compare_action << 6;	// Set the output compare action
 	}
 	
-	if (pin && PT4)
+	if (pin & PT4)
 	{
-		TC4 = TCNT + 10;
-		while(!(TFLG1 & pin)) // wait until CnF flag is set
+		TCTL1 |= TCTL_SET_LOW;		// Make sure first output compare sets output to low
+		TC4 = TCNT + 10;			// Wait untill outpu pin is set low
+		while(!(TFLG1 & pin)); // wait until CnF flag is set
 		
-		TC4 = compare_time;
-		TCTL1 |= compare_action;
+		TC4 = compare_time;			// Set the output compare time
+		TCTL1 |= compare_action;	// Set the output compare action
 	}
 	
-	if (pin && PT5)
+	if (pin & PT5)
 	{
-		TC5 = TCNT + 10;
-		while(!(TFLG1 & pin)) // wait until CnF flag is set
+		TCTL1 |= TCTL_SET_LOW << 2;		// Make sure first output compare sets output to low
+		TC5 = TCNT + 10;			// Wait untill outpu pin is set low
+		while(!(TFLG1 & pin)); // wait until CnF flag is set
 		
-		TC5 = compare_time;
-		TCTL1 |= compare_action << 2;
+		TC5 = compare_time;			// Set the output compare time
+		TCTL1 |= compare_action << 2;	// Set the output compare action
 	}
 	
-	if (pin && PT6)
+	if (pin & PT6)
 	{
-		TC6 = TCNT + 10;
-		while(!(TFLG1 & pin)) // wait until CnF flag is set
+		TCTL1 |= TCTL_SET_LOW << 4;		// Make sure first output compare sets output to low
+		TC6 = TCNT + 10;					// Wait untill outpu pin is set low
+		while(!(TFLG1 & pin)); 				// wait until CnF flag is set
 		
-		TC6 = compare_time;
-		TCTL1 |= compare_action << 4;
+		TC6 = compare_time;			// Set the output compare time
+		TCTL1 |= compare_action << 4;	// Set the output compare action
 	}
 	
-	if (pin && PT7)
+	if (pin & PT7)
 	{
-		TC7 = TCNT + 10;
-		while(!(TFLG1 & pin)) // wait until CnF flag is set
+		TCTL1 |= TCTL_SET_LOW << 6;		// Make sure first output compare sets output to low
+		TC7 = TCNT + 10;				// Make sure output compare starts high			// Wait untill outpu pin is set low
+		while(!(TFLG1 & pin)); 			// wait until CnF flag is set
 		
-		TC7 = compare_time;
-		TCTL1 |= compare_action << 6;
+		TC7 = compare_time;			// Set the output compare time
+		TCTL1 |= compare_action << 6;	// Set the output compare action
 	}
 }
 
-void initializePWM(int pin, int period, int duty)
+//----- HARD CODED CLOCK FACTOR!!-----//
+/*
+ * [initializePWM description]
+ * @param pin    pwm output pin
+ * @param period period time in milliseconds
+ * @param duty   duty cycle in milliseconds
+ */
+void initializePWM(pwmOutput* pin, int period, int duty)
 {
+	long clock_period_ticks, clock_duty_ticks;
+	int clock_timer_factor;
+
+	clock_period_ticks = ((long)period * 1000000L) / CLOCK_FACTORED_PERIOD;
+	clock_duty_ticks = ((long)duty * 1000000L) / CLOCK_FACTORED_PERIOD;
+
+	pin->HiCnt = clock_duty_ticks;
+	pin->LoCnt = clock_period_ticks - clock_duty_ticks;
+
+	// Will always use interrupts for control
+	// Will have to set pwm struct duty cycles hitime, lowtime
 	// Setup output compare on pin
-	
+	setup_timer(CLOCK_FACTOR);
+	setup_output_capture(pin->pin, pin->HiCnt, true, TCTL_TOGGLE);
 }
 
-void initialize()
+void initialize(int* PWMpins, int number_of_pwm_pins, char interrupts)
 {
 	// Set PTT ports
 	// Initialize 3 PWM systems
 	// initialize interrupts
 	// initialize pathData to all null position struct values
+	// PWM_peroid * 75 / 100 will setup the nutural duty cycle 
+	// PWM_period should be 20 ms
+	// int i;
+	// for(i = 0; i < number_of_pwm_pins; i++)
+	// {
+	// 	initializePWM(PWMpins[i], PWM_PERIOD, (PWM_PERIOD*75)/100);
+	// }
+	output_0.pin = 1;
+
+	initializePWM(&output_0, PWM_PERIOD, (PWM_PERIOD*75)/100);
 	STATE = RESET;
 }
 
@@ -244,9 +295,11 @@ void playback()
 
 }
 
-void main(void) {
-	/* put your own code here */
-	initialize();
+void main(void) 
+{
+// void initialize(int* PWMpins, int number_of_pwm_pins, char interrupts)
+	char servoPins[1] = {0};
+	initialize(servoPins, 1, true);
 	EnableInterrupts;
 	while(1)
 	{
@@ -289,15 +342,15 @@ void main(void) {
  */
 void interrupt VectorNumber_Vtimch0 togglePT0(void)
 {
-	if (HiorLo0)
+	if (output_0.HiorLo)
 	{
-		TC0 += HiCnt0;
-		HiorLo0 = 0;
+		TC0 += output_0.HiCnt;
+		output_0.HiorLo = 0;
 	}
 	else
 	{
-		TC0 += LoCnt0;
-		HiorLo0 = 1;
+		TC0 += output_0.LoCnt;
+		output_0.HiorLo = 1;
 	}
 }
 
@@ -307,15 +360,15 @@ void interrupt VectorNumber_Vtimch0 togglePT0(void)
  */
 void interrupt VectorNumber_Vtimch1 togglePT1(void)
 {
-	if (HiorLo1)
+	if (output_1.HiorLo)
 	{
-		TC0 += HiCnt1;
-		HiorLo0 = 0;
+		TC0 += output_1.HiCnt;
+		output_1.HiorLo = 0;
 	}
 	else
 	{
-		TC0 += LoCnt1;
-		HiorLo0 = 1;
+		TC0 += output_1.LoCnt;
+		output_1.HiorLo = 1;
 	}
 }
 
@@ -325,15 +378,15 @@ void interrupt VectorNumber_Vtimch1 togglePT1(void)
  */
 void interrupt VectorNumber_Vtimch2 togglePT2(void)
 {
-	if (HiorLo2)
+	if (output_2.HiorLo)
 	{
-		TC0 += HiCnt2;
-		HiorLo0 = 0;
+		TC0 += output_2.HiCnt;
+		output_2.HiorLo = 0;
 	}
 	else
 	{
-		TC0 += LoCnt2;
-		HiorLo0 = 1;
+		TC0 += output_2.LoCnt;
+		output_2.HiorLo = 1;
 	}
 }
 
@@ -343,15 +396,15 @@ void interrupt VectorNumber_Vtimch2 togglePT2(void)
  */
 void interrupt VectorNumber_Vtimch3 togglePT3(void)
 {
-	if (HiorLo3)
+	if (output_3.HiorLo)
 	{
-		TC0 += HiCnt3;
-		HiorLo0 = 0;
+		TC0 += output_3.HiCnt;
+		output_3.HiorLo = 0;
 	}
 	else
 	{
-		TC0 += LoCnt3;
-		HiorLo0 = 1;
+		TC0 += output_3.LoCnt;
+		output_3.HiorLo = 1;
 	}
 }
 
@@ -361,14 +414,14 @@ void interrupt VectorNumber_Vtimch3 togglePT3(void)
  */
 void interrupt VectorNumber_Vtimch4 togglePT4(void)
 {
-	if (HiorLo4)
+	if (output_1.HiorLo)
 	{
-		TC0 += HiCnt4;
-		HiorLo0 = 0;
+		TC0 += output_4.HiCnt;
+		output_1.HiorLo = 0;
 	}
 	else
 	{
-		TC0 += LoCnt4;
-		HiorLo0 = 1;
+		TC0 += output_4.LoCnt;
+		output_4.HiorLo = 1;
 	}
 }
