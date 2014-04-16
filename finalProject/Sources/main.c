@@ -34,9 +34,10 @@ typedef struct
 } OutputCompare;
 
 
-OutputCompare servo_1;
-unsigned int servo_1_array_last_index;
+OutputCompare servo_1, servo_2;
+unsigned int servo_1_array_last_index, servo_2_array_last_index;
 OutputCompare servo_1_array[100]; // can't poot MAX_ARRAY_SIZE here compile failes
+OutputCompare servo_2_array[100];
 
 void main(void) 
 {
@@ -82,13 +83,21 @@ void main(void)
 
 void play()
 {
-	unsigned int pot_voltage;
-	pot_voltage = ATDDR0L;
-	if(pot_voltage > 250) 
-		pot_voltage = 250;
-	pot_voltage = (pot_voltage *12) + 3000; // multiply by 8 (conversion factor)
-	servo_1.high_count = pot_voltage;
-	servo_1.low_count = MAX_CLK_TICKS - pot_voltage;
+	unsigned int pot_voltage_1, pot_voltage_2;
+	pot_voltage_1 = ATDDR0L;
+	pot_voltage_2 = ATDDR1L;
+
+	if(pot_voltage_1 > 250) pot_voltage_1 = 250;
+	if(pot_voltage_2 > 250) pot_voltage_2 = 250;
+
+	pot_voltage_1 = (pot_voltage_1 * 12) + 3000; // multiply by 8 (conversion factor)
+	pot_voltage_2 = (pot_voltage_2 * 12) + 3000; // multiply by 8 (conversion factor)
+
+	servo_1.high_count = pot_voltage_1;
+	servo_1.low_count = MAX_CLK_TICKS - pot_voltage_1;
+
+	servo_2.high_count = pot_voltage_2;
+	servo_2.low_count = MAX_CLK_TICKS - pot_voltage_2;
 }
 
 void read_control_type()
@@ -155,50 +164,71 @@ void initialize()
 	servo_1.high_count = 6000;
 	servo_1.low_count =  54000;
 
-	// setup port PT4 for output
-	DDRT 	= 0x10;
-	DDRM	= 0x00; // All PTM ports are inputs
+	// setup port PT0 for output
+	DDRT 	= 0x8F;
+	DDRM	= ~(0x03); // All PTM ports are inputs
 
 	// setup rti
 	RTICTL = 0x7F;  
 
-	// setup analog input for 1 input
+	// sets up input for ANO2 and AN01 analog input
 	ATDCTL2 = 0xC0;
-  	ATDCTL3 = 0x08;
-  	ATDCTL4 = 0x85;
-  	ATDCTL5 = 0xA2; 
+	ATDCTL3 = 0x10;
+	ATDCTL4 = 0x85;
+	ATDCTL5 = 0xB2;
 
 	// setup the outputcompare timer
 	TSCR1 	= 0x90; 	// enables the TCNT and fst time flag clear
 	TSCR2 	= 0x03; 	// set prescaler to 8. Makes a 21.8 ms peroid
 
-	TIOS 	|= 0x10; 	// setup channel 4 for output compare
-	TCTL1	= 0x03; 	// set 0c$ action to pull high
-	TC4		= TCNT + 10;// wait a bit to send a high signal
-	while(!(TFLG1 & 0x10)); // wait until C4F is set
+	TIOS 	|= 0x03; 	// setup channel 0 and channel 1 for output compare
+	TCTL2	= 0x0F; 	// set 0c$ action to pull high
+	TC0		= TCNT + 10;	// wait a bit to send a high signal
+	TC1 	= TCNT + 10;	// wait a bit to send a high signal
+	while(!(TFLG1 & 0x03)); // wait until C0F and C1F is set
 
-	TCTL1 	= 0x01;		// set OC4 pin action to toggle
-	TC4		+= servo_1.high_count;		// setup OC4 pin to the next action // high count
-	servo_1.high_or_low = 0;// indicate action for the next compare
-	TIE 	= 0x10; 	// enable OC4 interrupt locally
+	TCTL2 	= 0x05;		// set OC0 pin action to toggle
+	TC0		+= servo_1.high_count;		// setup OC0 pin to the next action // high count
+	TC1 	+= servo_2.high_count;		// setup OC1 pin to the next action // high count
+	servo_1.high_or_low = 0;	// indicate action for the next compare
+	servo_2.high_or_low = 0; 	// indicate action for the next compare
+	TIE 	= 0x03; 	// enable OC0 and OC1 interrupt locally
 	asm("cli"); 		// enable interrupts globally
 }
 
 //--------------INTERRUPT METHODS---------------//
 /**
- * Interrupt to handle output compare on T4
+ * Interrupt to handle output compare on T0
  */
-void interrupt VectorNumber_Vtimch4 togglePT4(void)
+void interrupt VectorNumber_Vtimch0 togglePT0(void)
 {
 	if(servo_1.high_or_low)
 	{
-		TC4 += servo_1.high_count;
+		TC0 += servo_1.high_count;
 		servo_1.high_or_low = 0;
 	}
 	else
 	{
-		TC4	+= servo_1.low_count;
+		TC0	+= servo_1.low_count;
 		servo_1.high_or_low = 1;
+	}
+}
+
+/**
+ * Interrupt to handle output compare on T1
+ * @return  null
+ */
+void interrupt VectorNumber_Vtimch1 togglePT1(void)
+{
+	if (servo_2.high_or_low)
+	{
+		TC1 += servo_2.high_count;
+		servo_2.high_or_low = 0;
+	}
+	else
+	{
+		TC1 += servo_2.low_count;
+		servo_2.high_or_low = 1;
 	}
 }
 
