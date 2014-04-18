@@ -4,49 +4,57 @@
 
 #include <hidef.h>      	/* common defines and macros */
 #include "derivative.h"      /* derivative-specific definitions */
-#include "common.h"
+#include "eeprom.c"
+#include "servo_location.h"
+// #include "common.h"
 
-void play();
+void play(void);
 void read_control_type(void);
 void user_control(void);
 void record(void);
 void playback(void);
 void initialize(void);
+void wait(void);
 
-// State definitions
+// state definitions
 #define READ_CONTROL 0
 #define RESET        1
 #define USER_CONTROL 2
 #define RECORD       3
 #define PLAYBACK     4
+#define WATING		 5
+
+#define RTI_CTL 0x7f
 
 const char CLOCK_FACTOR = 3;
 const unsigned int MAX_CLK_TICKS = 60000; // for a 20 ms peroid
 const unsigned int MAX_ARRAY_SIZE = 100;
-char STATE;
+const int RIG_MEMORY_SIZE = 4; // in bytes
 
-typedef struct 
-{
-	char high_or_low;
-	unsigned int high_count;
-	unsigned int low_count;
-	// char pin;
-} OutputCompare;
+char state;
 
+unsigned int rig_1_array_last_index;
+// OutputCompare servo_1_array[100]; // can't poot MAX_ARRAY_SIZE here compile failes
+// OutputCompare servo_2_array[100];
 
-OutputCompare servo_1, servo_2;
-unsigned int servo_1_array_last_index, servo_2_array_last_index;
-OutputCompare servo_1_array[100]; // can't poot MAX_ARRAY_SIZE here compile failes
-OutputCompare servo_2_array[100];
+motionControlRig rig;
 
 void main(void) 
 {
 	initialize();
-	servo_1_array_last_index = 0;
-	STATE = READ_CONTROL;
+	rig_1_array_last_index = 0;
+	// state = READ_CONTROL;
+	// rig.servo1.high_count = 4188;
+	// rig.servo2.high_count = 3000;
+	// rig.servo1.low_count = 6000 - rig.servo1.high_count;
+	// rig.servo2.low_count = 6000 - rig.servo2.high_count;
+
+	// putMotorLocation(&rig, 0x00,0x00);
+	// getMotorLocation(&rig, 0x00,0x00);
+
 	for(;;)
 	{
-		switch(STATE)
+		switch(state)
 		{
 			case READ_CONTROL:
 				read_control_type();
@@ -63,20 +71,23 @@ void main(void)
 			case PLAYBACK:
 				playback();
 				break;
+			case WATING:
+				wait();
+				break;
 			default:
-				STATE = READ_CONTROL;
+				state = READ_CONTROL;
 				break;
 		}
-		// if(PTM & 0x01)
-		// {
-		// 	OutputCompare.high_count = 4500;
-		// 	OutputCompare.low_count = 55500;
-		// }
-		// else
-		// {
-		// 	OutputCompare.high_count = 6000;
-		// 	OutputCompare.low_count = 54000;
-		// }
+		if(PTM & 0x01)
+		{
+			rig.servo1.high_count = 4500;
+			rig.servo2.low_count = 55500;
+		}
+		else
+		{
+			rig.servo1.high_count = 6000;
+			rig.servo2.low_count = 54000;
+		}
 		_FEED_COP(); /* feeds the dog */
 	} // loop forever
 }
@@ -93,85 +104,132 @@ void play()
 	pot_voltage_1 = (pot_voltage_1 * 12) + 3000; // multiply by 8 (conversion factor)
 	pot_voltage_2 = (pot_voltage_2 * 12) + 3000; // multiply by 8 (conversion factor)
 
-	servo_1.high_count = pot_voltage_1;
-	servo_1.low_count = MAX_CLK_TICKS - pot_voltage_1;
+	rig.servo1.high_count = pot_voltage_1;
+	rig.servo1.low_count = MAX_CLK_TICKS - pot_voltage_1;
 
-	servo_2.high_count = pot_voltage_2;
-	servo_2.low_count = MAX_CLK_TICKS - pot_voltage_2;
+	rig.servo2.high_count = pot_voltage_2;
+	rig.servo2.low_count = MAX_CLK_TICKS - pot_voltage_2;
 }
 
 void read_control_type()
 {
-	if(PTM & 0x01)
+	if(PTT & 0x20)
 	{
-		STATE = USER_CONTROL;
+		state = USER_CONTROL;
 		return;
 	} 
-	else if (PTM & 0x02)
+	else if (PTM & 0x01)
 	{
-		STATE = RECORD;
+		state = RECORD;
 		return;
 	}
-	else if( PTM & 0x04)
+	else if(PTM & 0x02)
 	{
-		STATE = PLAYBACK;
+		state = PLAYBACK;
 		return;
 	} 
+	else // default
+	{
+		state = WATING;
+	}
 }
 
 void record()
 {
-	servo_1_array_last_index = 0;
-	while((PTM & 0x02) && (servo_1_array_last_index < MAX_ARRAY_SIZE))
+	unsigned char high_byte, low_byte;
+	high_byte = 0x00;
+	low_byte = 0x00;
+
+	rig_1_array_last_index = 0;
+
+	//something to change is ending recording with a stop state
+	while((PTM & 0x01) && (rig_1_array_last_index < MAX_ARRAY_SIZE))
 	{
 		while (!(CRGFLG & 0x80)) ; // wait for RTI timeout 
  		CRGFLG = 0x80;
 		play();
-		servo_1_array[servo_1_array_last_index].high_count = servo_1.high_count;
-		servo_1_array[servo_1_array_last_index].low_count = servo_1.low_count;
-		servo_1_array_last_index += 1;
+
+		putMotorLocation(&rig, high_byte, low_byte);
+		low_byte += RIG_MEMORY_SIZE;
+		if(256 - low_byte <= RIG_MEMORY_SIZE)
+		{
+			low_byte = 0;
+			high_byte += RIG_MEMORY_SIZE;
+		}
+
+
+		rig_1_array_last_index += 1;
 	}
-	while(PTM & 0x02); // wait until recode switch is flipped
-	STATE = READ_CONTROL;
+
+	while(PTM & 0x01); // wait until recode switch is flipped
+	state = READ_CONTROL;
 }
 
 void user_control()
-{
-	while(PTM & 0x01) // while switch is on
+{	
+	while(PTT & 0x20) // while switch is on PT5
 	{
 		play();
 	}
-	STATE = READ_CONTROL;
+	state = READ_CONTROL;
 }
 
 void playback()
 {
 	unsigned int i;
-	for(i = 0; i < servo_1_array_last_index; i++)
+	unsigned char high_byte, low_byte;
+	high_byte = 0x00;
+	low_byte = 0x00;
+	for (i = 0; i < rig_1_array_last_index; i++)
 	{
+ 		getMotorLocation(&rig, high_byte, low_byte);
 		while (!(CRGFLG & 0x80)) ; // wait for RTI timeout 
  		CRGFLG = 0x80;
-		servo_1.high_count = servo_1_array[i].high_count;
-		servo_1.low_count = servo_1_array[i].low_count;
+
+		low_byte += RIG_MEMORY_SIZE;
+		if(256 - low_byte <= RIG_MEMORY_SIZE)
+		{
+			low_byte = 0;
+			high_byte += RIG_MEMORY_SIZE;
+		}
 	}
-	while(PTM & 0x04); // wait unil recode button is unpressed
-	STATE = READ_CONTROL;
+	while(PTM & 0x02); // wait until recode button is unpressed
+	state = READ_CONTROL;
+}
+
+void wait()
+{
+	rig.servo1.high_count = 4500;
+	rig.servo1.low_count = 55500;
+	rig.servo2.high_count = 4500;
+	rig.servo2.low_count = 55500;
+	while(state == WATING)
+	{
+		read_control_type();
+	}
+	
 }
 
 void initialize()
 {
+	initializeSPI();
+	
 	// setup the Output compare struct
-	servo_1.high_count = 6000;
-	servo_1.low_count =  54000;
+	rig.servo1.high_count = 6000;
+	rig.servo1.low_count =  54000;
+	rig.servo2.high_count = 6000;
+	rig.servo2.low_count =  54000;
 
 	// setup port PT0 for output
+	// PT0,1,2,3,7 outptus
 	DDRT 	= 0x8F;
-	DDRM	= ~(0x03); // All PTM ports are inputs
-
+	// 0, 1 inputs 
+	DDRM	= ~(0x03); 
+	
 	// setup rti
-	RTICTL = 0x7F;  
+	RTICTL = RTI_CTL;  
 
-	// sets up input for ANO2 and AN01 analog input
+	// sets up input for ANO2 and AN03 analog input; only AN02 and AN03 as inputs
 	ATDCTL2 = 0xC0;
 	ATDCTL3 = 0x10;
 	ATDCTL4 = 0x85;
@@ -188,10 +246,10 @@ void initialize()
 	while(!(TFLG1 & 0x03)); // wait until C0F and C1F is set
 
 	TCTL2 	= 0x05;		// set OC0 pin action to toggle
-	TC0		+= servo_1.high_count;		// setup OC0 pin to the next action // high count
-	TC1 	+= servo_2.high_count;		// setup OC1 pin to the next action // high count
-	servo_1.high_or_low = 0;	// indicate action for the next compare
-	servo_2.high_or_low = 0; 	// indicate action for the next compare
+	TC0		+= rig.servo1.high_count;		// setup OC0 pin to the next action // high count
+	TC1 	+= rig.servo2.high_count;		// setup OC1 pin to the next action // high count
+	rig.servo1.high_or_low = 0;	// indicate action for the next compare
+	rig.servo2.high_or_low = 0; 	// indicate action for the next compare
 	TIE 	= 0x03; 	// enable OC0 and OC1 interrupt locally
 	asm("cli"); 		// enable interrupts globally
 }
@@ -202,15 +260,15 @@ void initialize()
  */
 void interrupt VectorNumber_Vtimch0 togglePT0(void)
 {
-	if(servo_1.high_or_low)
+	if(rig.servo1.high_or_low)
 	{
-		TC0 += servo_1.high_count;
-		servo_1.high_or_low = 0;
+		TC0 += rig.servo1.high_count;
+		rig.servo1.high_or_low = 0;
 	}
 	else
 	{
-		TC0	+= servo_1.low_count;
-		servo_1.high_or_low = 1;
+		TC0	+= rig.servo1.low_count;
+		rig.servo1.high_or_low = 1;
 	}
 }
 
@@ -220,15 +278,15 @@ void interrupt VectorNumber_Vtimch0 togglePT0(void)
  */
 void interrupt VectorNumber_Vtimch1 togglePT1(void)
 {
-	if (servo_2.high_or_low)
+	if (rig.servo2.high_or_low)
 	{
-		TC1 += servo_2.high_count;
-		servo_2.high_or_low = 0;
+		TC1 += rig.servo2.high_count;
+		rig.servo2.high_or_low = 0;
 	}
 	else
 	{
-		TC1 += servo_2.low_count;
-		servo_2.high_or_low = 1;
+		TC1 += rig.servo2.low_count;
+		rig.servo2.high_or_low = 1;
 	}
 }
 
