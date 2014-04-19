@@ -28,14 +28,12 @@ void wait(void);
 
 const char CLOCK_FACTOR = 3;
 const unsigned int MAX_CLK_TICKS = 60000; // for a 20 ms peroid
-const unsigned int MAX_ARRAY_SIZE = 100;
+const unsigned int MAX_ARRAY_SIZE = 32;
 const int RIG_MEMORY_SIZE = 4; // in bytes
 
 char state;
 
 unsigned int rig_1_array_last_index;
-// OutputCompare servo_1_array[100]; // can't poot MAX_ARRAY_SIZE here compile failes
-// OutputCompare servo_2_array[100];
 
 motionControlRig rig;
 
@@ -43,14 +41,7 @@ void main(void)
 {
 	initialize();
 	rig_1_array_last_index = 0;
-	// state = READ_CONTROL;
-	// rig.servo1.high_count = 4188;
-	// rig.servo2.high_count = 3000;
-	// rig.servo1.low_count = 6000 - rig.servo1.high_count;
-	// rig.servo2.low_count = 6000 - rig.servo2.high_count;
-
-	// putMotorLocation(&rig, 0x00,0x00);
-	// getMotorLocation(&rig, 0x00,0x00);
+	state = READ_CONTROL;
 
 	for(;;)
 	{
@@ -94,21 +85,43 @@ void main(void)
 
 void play()
 {
-	unsigned int pot_voltage_1, pot_voltage_2;
+	unsigned int pot_voltage_1, pot_voltage_2, pot_voltage_3;
 	pot_voltage_1 = ATDDR0L;
 	pot_voltage_2 = ATDDR1L;
+	pot_voltage_3 = ATDDR2L;
 
 	if(pot_voltage_1 > 250) pot_voltage_1 = 250;
 	if(pot_voltage_2 > 250) pot_voltage_2 = 250;
+	if(pot_voltage_3 > 250) pot_voltage_3 = 250;
 
 	pot_voltage_1 = (pot_voltage_1 * 12) + 3000; // multiply by 8 (conversion factor)
 	pot_voltage_2 = (pot_voltage_2 * 12) + 3000; // multiply by 8 (conversion factor)
 
-	rig.servo1.high_count = pot_voltage_1;
-	rig.servo1.low_count = MAX_CLK_TICKS - pot_voltage_1;
+	rig.servo1.high_count = (rig.servo1.high_count * 2 + pot_voltage_1) / 3;
+	rig.servo1.low_count = MAX_CLK_TICKS - rig.servo1.high_count;
 
-	rig.servo2.high_count = pot_voltage_2;
+	rig.servo2.high_count = (rig.servo2.high_count * 2 + pot_voltage_2) / 3;
 	rig.servo2.low_count = MAX_CLK_TICKS - pot_voltage_2;
+
+	if (pot_voltage_3 > 0x7D) 
+	{
+		rig.dc_right.high_count = (pot_voltage_3 - 0x7D) * 10;
+		rig.dc_right.low_count = 1265 - rig.dc_right.high_count;
+		rig.dc_right.enable = 1;
+		rig.dc_left.enable = 0;
+	} 
+	else if( pot_voltage_3 < 0x7D)
+	{
+		rig.dc_left.high_count = (0x7D - pot_voltage_3) * 10;
+		rig.dc_left.low_count = 1265 - rig.dc_left.high_count;
+		rig.dc_left.enable = 1;
+		rig.dc_right.enable = 0;
+	} 
+	else 
+	{
+		rig.dc_left.enable = 0;
+		rig.dc_right.enable = 0;
+	}
 }
 
 void read_control_type()
@@ -157,7 +170,6 @@ void record()
 			high_byte += RIG_MEMORY_SIZE;
 		}
 
-
 		rig_1_array_last_index += 1;
 	}
 
@@ -203,6 +215,12 @@ void wait()
 	rig.servo1.low_count = 55500;
 	rig.servo2.high_count = 4500;
 	rig.servo2.low_count = 55500;
+
+	rig.dc_right.high_count = 1;
+	rig.dc_right.low_count = 1279;
+	rig.dc_left.high_count = 1;
+	rig.dc_left.low_count = 1279;
+
 	while(state == WATING)
 	{
 		read_control_type();
@@ -213,12 +231,17 @@ void wait()
 void initialize()
 {
 	initializeSPI();
-	
+	initializePLL();
 	// setup the Output compare struct
 	rig.servo1.high_count = 6000;
 	rig.servo1.low_count =  54000;
 	rig.servo2.high_count = 6000;
 	rig.servo2.low_count =  54000;
+
+	rig.dc_right.high_count = 1;
+	rig.dc_right.low_count = 1279;
+	rig.dc_left.high_count = 1;
+	rig.dc_left.low_count = 1279;
 
 	// setup port PT0 for output
 	// PT0,1,2,3,7 outptus
@@ -231,7 +254,7 @@ void initialize()
 
 	// sets up input for ANO2 and AN03 analog input; only AN02 and AN03 as inputs
 	ATDCTL2 = 0xC0;
-	ATDCTL3 = 0x10;
+	ATDCTL3 = 0x18;
 	ATDCTL4 = 0x85;
 	ATDCTL5 = 0xB2;
 
@@ -239,18 +262,28 @@ void initialize()
 	TSCR1 	= 0x90; 	// enables the TCNT and fst time flag clear
 	TSCR2 	= 0x03; 	// set prescaler to 8. Makes a 21.8 ms peroid
 
-	TIOS 	|= 0x03; 	// setup channel 0 and channel 1 for output compare
-	TCTL2	= 0x0F; 	// set 0c$ action to pull high
+	TIOS 	|= 0x0F; 	// setup channel 0, channel 1, channel 2, and channel 3 for output compare
+	TCTL2	= 0xFF; 	// set 0cn action to pull high
+
 	TC0		= TCNT + 10;	// wait a bit to send a high signal
 	TC1 	= TCNT + 10;	// wait a bit to send a high signal
-	while(!(TFLG1 & 0x03)); // wait until C0F and C1F is set
+	TC2 	= TCNT + 10;	// wait a bit to send a high signal
+	TC3 	= TCNT + 10;	// wait a bit to send a high signal
+
+	while(!(TFLG1 & 0x0F)); // wait until C0F, C1F, C2F, C3F is set
 
 	TCTL2 	= 0x05;		// set OC0 pin action to toggle
 	TC0		+= rig.servo1.high_count;		// setup OC0 pin to the next action // high count
 	TC1 	+= rig.servo2.high_count;		// setup OC1 pin to the next action // high count
-	rig.servo1.high_or_low = 0;	// indicate action for the next compare
+	TC2 	+= rig.dc_right.high_count;		// setup OC2 pin to the next action // high count
+	TC3		+= rig.dc_left.high_count;		// setup OC3 pin to the next action // high count
+
+	rig.servo1.high_or_low = 0;		// indicate action for the next compare
 	rig.servo2.high_or_low = 0; 	// indicate action for the next compare
-	TIE 	= 0x03; 	// enable OC0 and OC1 interrupt locally
+	rig.dc_right.high_or_low = 0;	// indicate action for the next compare
+	rig.dc_left.high_or_low = 0;	// indicate action for the next compare
+
+	TIE 	= 0x0F; 	// enable OC0, OC1, OC2, and OC3 interrupt locally
 	asm("cli"); 		// enable interrupts globally
 }
 
@@ -287,6 +320,50 @@ void interrupt VectorNumber_Vtimch1 togglePT1(void)
 	{
 		TC1 += rig.servo2.low_count;
 		rig.servo2.high_or_low = 1;
+	}
+}
+
+/**
+ * Interrupt to handle output compare on T2
+ * @return  null
+ */
+void interrupt VectorNumber_Vtimch2 togglePT2(void)
+{
+	if (rig.dc_right.high_or_low)
+	{
+		TC2 += rig.dc_right.high_count;
+
+		if (rig.dc_right.enable) { PTT |= 0x04; }
+		else { PTT &= ~(0x04); }
+
+		rig.dc_right.high_or_low = 0;
+	}
+	else
+	{
+		TC2 += rig.dc_right.low_count;
+		PTT &= ~(0x04);
+		rig.dc_right.high_or_low = 1;
+	}
+}
+
+/**
+ * Interrupt to handle output compare on T3
+ * @return  null
+ */
+void interrupt VectorNumber_Vtimch3 togglePT3(void)
+{
+	if (rig.dc_left.high_or_low)
+	{
+		TC3 += rig.dc_left.high_count;
+		if (rig.dc_left.enable) { PTT |= 0x08; }
+		else { PTT &= ~(0x08); }
+		rig.dc_left.high_or_low = 0;
+	}
+	else
+	{
+		TC3 += rig.dc_left.low_count;
+		PTT &= ~(0x08);
+		rig.dc_left.high_or_low = 1;;
 	}
 }
 

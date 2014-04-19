@@ -17,6 +17,7 @@
 typedef struct 
 {
 	char high_or_low;
+	char enable;
 	unsigned int high_count;
 	unsigned int low_count;
 } OutputCompare;
@@ -25,10 +26,12 @@ typedef struct
 {
 	OutputCompare servo1;
 	OutputCompare servo2;
-	// DC MOTOR
+	OutputCompare dc_right;
+	OutputCompare dc_left;
 } motionControlRig;
 
-void initializePLL(void) {
+void initializePLL(void) 
+{
 	CLKSEL_PLLSEL = 0; 		// turn off PLL for source clock
 	PLLCTL_PLLON = 1; 			// turn on PLL
 	// Assuming OscFreq = $8000, we mult by synr+1=3 (to get 24MHz)
