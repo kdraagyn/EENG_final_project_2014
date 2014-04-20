@@ -26,10 +26,10 @@ void wait(void);
 
 #define RTI_CTL 0x7f
 
-const char CLOCK_FACTOR = 3;
-const unsigned int MAX_CLK_TICKS = 60000; // for a 20 ms peroid
-const unsigned int MAX_ARRAY_SIZE = 32;
-const int RIG_MEMORY_SIZE = 4; // in bytes
+const char CLOCK_FACTOR           = 3;
+const unsigned int MAX_CLK_TICKS  = 60000; 	// for a 20 ms peroid
+const unsigned int MAX_ARRAY_SIZE = 8000;	// number of writable locations
+const int RIG_MEMORY_SIZE         = 8; 		// in bytes
 
 char state;
 
@@ -162,9 +162,17 @@ void record()
  		CRGFLG = 0x80;
 		play();
 
-		putMotorLocation(&rig, high_byte, low_byte);
+		if(high_byte != 0xff || low_byte != 0xff)
+		{
+			putMotorLocation(&rig, high_byte, low_byte);
+		}
+		else
+		{
+			putMotorLocation(&rig, high_byte, low_byte);
+			break;
+		}
 		low_byte += RIG_MEMORY_SIZE;
-		if(256 - low_byte <= RIG_MEMORY_SIZE)
+		if(0xff - low_byte <= RIG_MEMORY_SIZE)
 		{
 			low_byte = 0;
 			high_byte += RIG_MEMORY_SIZE;
@@ -194,6 +202,9 @@ void playback()
 	low_byte = 0x00;
 	for (i = 0; i < rig_1_array_last_index; i++)
 	{
+		rig.dc_right.enable = 1;
+		rig.dc_left.enable = 1;
+		
  		getMotorLocation(&rig, high_byte, low_byte);
 		while (!(CRGFLG & 0x80)) ; // wait for RTI timeout 
  		CRGFLG = 0x80;
@@ -205,6 +216,9 @@ void playback()
 			high_byte += RIG_MEMORY_SIZE;
 		}
 	}
+	rig.dc_right.enable = 0;
+	rig.dc_left.enable = 0;
+
 	while(PTM & 0x02); // wait until recode button is unpressed
 	state = READ_CONTROL;
 }
@@ -216,10 +230,9 @@ void wait()
 	rig.servo2.high_count = 4500;
 	rig.servo2.low_count = 55500;
 
-	rig.dc_right.high_count = 1;
-	rig.dc_right.low_count = 1279;
-	rig.dc_left.high_count = 1;
-	rig.dc_left.low_count = 1279;
+	rig.dc_right.enable = 0;
+	rig.dc_left.enable = 0;
+
 
 	while(state == WATING)
 	{

@@ -171,10 +171,14 @@ void putMotorLocation(motionControlRig* rig, unsigned char Haddress, unsigned ch
 	putcharSPI(WR);			// write "write" instruction to the EEPROM device
 	putcharSPI(Haddress);	// Write high address of the SPI device
 	putcharSPI(Laddress);	// write low address of the SPI device
-	putcharSPI((char) ((rig->servo1.high_count >> 8) & 0x00ff));	// Send Byte
-	putcharSPI((char) (rig->servo1.high_count & 0x00ff));			// Send Byte
-	putcharSPI((char) ((rig->servo2.high_count >> 8) & 0x00ff));	// Send Byte
-	putcharSPI((char) (rig->servo2.high_count & 0x00ff));			// Send Byte
+	putcharSPI((char) ((rig->servo1.high_count >> 8) & 0x00ff));	// save servo1 high byte
+	putcharSPI((char) (rig->servo1.high_count & 0x00ff));			// save servo1 low byte
+	putcharSPI((char) ((rig->servo2.high_count >> 8) & 0x00ff));	// Save servo2 high byte
+	putcharSPI((char) (rig->servo2.high_count & 0x00ff));			// Save servo2 low byte
+	putcharSPI((char) ((rig->dc_left.high_count >> 8) & 0x00ff));	// save dc_left high byte
+	putcharSPI((char) (rig->dc_left.high_count & 0x00ff));			// save dc_left low byte
+	putcharSPI((char) ((rig->dc_right.high_count >> 8) & 0x00ff));	// save dc_right high byte
+	putcharSPI((char) (rig->dc_right.high_count & 0x00ff));			// save dc_right low byte
 	PTT |= (CS_PIN);		// deselect slave
 	delay(5);				// delay 5 milliseconds
 }
@@ -198,6 +202,19 @@ void getMotorLocation(motionControlRig* rig, unsigned char Haddress, unsigned ch
 	returned = getcharSPI();
 	rig->servo2.high_count += returned;
 	rig->servo2.low_count = (unsigned int) 60000 - rig->servo2.high_count;
+
+	rig->dc_left.high_count = getcharSPI();	// Get the next char from the SPI data register
+	rig->dc_left.high_count <<= 8;
+	returned = getcharSPI();
+	rig->dc_left.high_count += returned;
+	rig->dc_left.low_count = (unsigned int) 1265 - rig->dc_left.high_count;
+
+	rig->dc_right.high_count = getcharSPI();	// Get the next char from the SPI data register
+	rig->dc_right.high_count <<= 8;
+	returned = getcharSPI();
+	rig->dc_right.high_count += returned;
+	rig->dc_right.low_count = (unsigned int) 1265 - rig->dc_right.high_count;
+
 
 	PTT |= (CS_PIN); 				// deselect slave
 }
