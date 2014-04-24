@@ -24,7 +24,7 @@ void wait(void);
 #define PLAYBACK     4
 #define WATING		 5
 
-#define RTI_CTL 0x7f
+#define RTI_CTL 	0x7f
 
 const char CLOCK_FACTOR           = 3;
 const unsigned int MAX_CLK_TICKS  = 60000; 	// for a 20 ms peroid
@@ -32,6 +32,7 @@ const unsigned int MAX_ARRAY_SIZE = 8000;	// number of writable locations
 const int RIG_MEMORY_SIZE         = 8; 		// in bytes
 
 char state;
+int test;
 
 unsigned int rig_1_array_last_index;
 
@@ -42,7 +43,7 @@ void main(void)
 	initialize();
 	rig_1_array_last_index = 0;
 	state = READ_CONTROL;
-
+	test = 0;
 	for(;;)
 	{
 		switch(state)
@@ -276,6 +277,7 @@ void initialize()
 	TSCR2 	= 0x03; 	// set prescaler to 8. Makes a 21.8 ms peroid
 
 	TIOS 	|= 0x0F; 	// setup channel 0, channel 1, channel 2, and channel 3 for output compare
+	TIOS	&= ~(~0x30);
 	TCTL2	= 0xFF; 	// set 0cn action to pull high
 
 	TC0		= TCNT + 10;	// wait a bit to send a high signal
@@ -296,8 +298,12 @@ void initialize()
 	rig.dc_right.high_or_low = 0;	// indicate action for the next compare
 	rig.dc_left.high_or_low = 0;	// indicate action for the next compare
 
-	TIE 	= 0x0F; 	// enable OC0, OC1, OC2, and OC3 interrupt locally
+	TIE 	= 0x3F; 	// enable OC0, OC1, OC2, OC3, OC4, and OC5 interrupt locally
 	asm("cli"); 		// enable interrupts globally
+
+	// Setup Input Capture
+	TCTL3 |= 0x05; // Sets up both channels 4 and 5 to capture on rising edge
+
 }
 
 //--------------INTERRUPT METHODS---------------//
@@ -378,6 +384,16 @@ void interrupt VectorNumber_Vtimch3 togglePT3(void)
 		PTT &= ~(0x08);
 		rig.dc_left.high_or_low = 1;;
 	}
+}
+
+void interrupt VectorNumber_Vtimch4 encoder_timingPT4()
+{
+	test += 1;
+}
+
+void interrupt VectorNumber_Vtimch5 encoder_timingPT5()
+{
+
 }
 
 /*  MATH
