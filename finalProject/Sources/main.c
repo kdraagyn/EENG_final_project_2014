@@ -127,7 +127,7 @@ void play()
 
 void read_control_type()
 {
-	if(PTT & 0x20)
+	if(PTT & 0x40)
 	{
 		state = USER_CONTROL;
 		return;
@@ -188,7 +188,7 @@ void record()
 
 void user_control()
 {	
-	while(PTT & 0x20) // while switch is on PT5
+	while(PTT & 0x40) // while switch is on PT5
 	{
 		play();
 	}
@@ -277,7 +277,7 @@ void initialize()
 	TSCR2 	= 0x03; 	// set prescaler to 8. Makes a 21.8 ms peroid
 
 	TIOS 	|= 0x0F; 	// setup channel 0, channel 1, channel 2, and channel 3 for output compare
-	TIOS	&= ~(~0x30);
+	TIOS	&= ~(0x30);
 	TCTL2	= 0xFF; 	// set 0cn action to pull high
 
 	TC0		= TCNT + 10;	// wait a bit to send a high signal
@@ -298,12 +298,10 @@ void initialize()
 	rig.dc_right.high_or_low = 0;	// indicate action for the next compare
 	rig.dc_left.high_or_low = 0;	// indicate action for the next compare
 
-	TIE 	= 0x3F; 	// enable OC0, OC1, OC2, OC3, OC4, and OC5 interrupt locally
-	asm("cli"); 		// enable interrupts globally
-
 	// Setup Input Capture
-	TCTL3 |= 0x05; // Sets up both channels 4 and 5 to capture on rising edge
-
+	//TCTL3 |= 0x05; // Sets up both channels 4 and 5 to capture on rising edge
+	TIE 	= 0x0F; 	// enable OC0, OC1, OC2, OC3, OC4, and OC5 interrupt locally
+	asm("cli"); 		// enable interrupts globally
 }
 
 //--------------INTERRUPT METHODS---------------//
@@ -386,15 +384,15 @@ void interrupt VectorNumber_Vtimch3 togglePT3(void)
 	}
 }
 
-void interrupt VectorNumber_Vtimch4 encoder_timingPT4()
-{
-	test += 1;
-}
+// void interrupt VectorNumber_Vtimch4 encoder_timingPT4()
+// {
+// 	test += 1;
+// }
 
-void interrupt VectorNumber_Vtimch5 encoder_timingPT5()
-{
+// void interrupt VectorNumber_Vtimch5 encoder_timingPT5()
+// {
 
-}
+// }
 
 /*  MATH
 total of 60,000 clk ticks
