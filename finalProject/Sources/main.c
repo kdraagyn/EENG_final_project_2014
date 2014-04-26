@@ -24,7 +24,7 @@ void wait(void);
 #define PLAYBACK     4
 #define WATING		 5
 
-#define RTI_CTL 	0x6B
+#define RTI_CTL 	0x6A
 
 const char CLOCK_FACTOR           = 3;
 const unsigned int MAX_CLK_TICKS  = 60000; 	// for a 20 ms peroid
@@ -174,8 +174,8 @@ void record()
 		low_byte += RIG_MEMORY_SIZE;
 		if(0xff - low_byte <= RIG_MEMORY_SIZE)
 		{
-			low_byte = 0;
-			high_byte += RIG_MEMORY_SIZE;
+			low_byte += RIG_MEMORY_SIZE;
+			high_byte += 1;
 		}
 		rig_1_array_last_index += 1;
 	}
@@ -195,36 +195,27 @@ void user_control()
 
 void playback()
 {
-	unsigned int i, first;
-	int delayTime;
+	unsigned int i;
 	unsigned char high_byte, low_byte;
 	high_byte = 0x00;
 	low_byte = 0x00;
-	first = 1;
+	
+	rig.dc_right.enable = 1;
+	rig.dc_left.enable = 1;
+	
 	for (i = 0; i < rig_1_array_last_index; i++)
 	{
 		while (!(CRGFLG & 0x80)) ; // wait for RTI timeout 
- 		CRGFLG = 0x80;
- 		if(first == 1)
- 		{
-	 		delayTime = TCNT;
-	 		first = 2;
- 		}
- 		else if(first == 2)
- 		{
- 			delayTime = delayTime - TCNT;
- 			first = 1;
- 		}
-		rig.dc_right.enable = 1;
-		rig.dc_left.enable = 1;
+ 		CRGFLG = 0x80;				// Clear the RTI timeout flag
+
 		
  		getMotorLocation(&rig, high_byte, low_byte);
-
+ 		
 		low_byte += RIG_MEMORY_SIZE;
 		if(256 - low_byte <= RIG_MEMORY_SIZE)
 		{
-			low_byte = 0;
-			high_byte += RIG_MEMORY_SIZE;
+			low_byte += RIG_MEMORY_SIZE;
+			high_byte += 1;
 		}
 	}
 	rig.dc_right.enable = 0;
