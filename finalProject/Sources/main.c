@@ -31,6 +31,8 @@ const unsigned int MAX_CLK_TICKS  = 60000; 	// for a 20 ms peroid
 const unsigned int MAX_ARRAY_SIZE = 8000;	// number of writable locations
 const int RIG_MEMORY_SIZE         = 8; 		// in bytes
 
+unsigned int pot_voltage_1, pot_voltage_2, pot_voltage_3;	// To keep track of past pot_voltages
+
 char state;
 int test;
 
@@ -86,15 +88,42 @@ void main(void)
 
 void play()
 {
-	unsigned int pot_voltage_1, pot_voltage_2, pot_voltage_3;
-	pot_voltage_1 = ATDDR0L;
-	pot_voltage_2 = ATDDR1L;
-	pot_voltage_3 = ATDDR2L;
+	int increment_voltage_1, increment_voltage_2, increment_voltage_3;
+	increment_voltage_1 = ATDDR0L;
+	increment_voltage_2 = ATDDR1L;
+	increment_voltage_3 = ATDDR2L;
 
-	if(pot_voltage_1 > 250) pot_voltage_1 = 250;
-	if(pot_voltage_2 > 250) pot_voltage_2 = 250;
-	if(pot_voltage_3 > 250) pot_voltage_3 = 250;
+	if(increment_voltage_1 > 250) increment_voltage_1 = 250;
+	if(increment_voltage_2 > 250) increment_voltage_2 = 250;
+	if(increment_voltage_3 > 250) increment_voltage_3 = 250;
 
+	// Devide increment_voltage_n by 8 (this should be arithmetic bit shift)
+	increment_voltage_1 >>= 8;
+	increment_voltage_2 >>= 8;
+	increment_voltage_3 >>= 8;
+
+	// map pot_voltage to an increment value based on input value
+	// 94 should map to stand still, 0 should map to backwards (quick), 250 should map to forwards (quick)
+	// After arithmetic shift the values should be in range 0 to 31 where 15 maps to 0
+	increment_voltage_1 -= 15;
+	increment_voltage_2 -= 15;
+	increment_voltage_3 -= 15;
+
+	// increment pot_voltage with new increment value(can be positive or negative)
+	// This same method is done on all 3 increments on all 3 motors
+	if (pot_voltage_1 + increment_voltage_1 > 250) pot_voltage_1 = 250;		// check that increment will not go above 250
+	else if (pot_voltage_1 < increment_voltage_1) pot_voltage_1 = 0;		// check that increment will not go below 0
+	else pot_voltage_1 += increment_voltage_1;								// increment by the proper amount
+	
+	if (pot_voltage_2 + increment_voltage_2 > 250) pot_voltage_2 = 250;
+	else if (pot_voltage_2 < increment_voltage_2) pot_voltage_2 = 0;
+	else pot_voltage_2 += increment_voltage_2;
+	
+	if (pot_voltage_3 + increment_voltage_3 > 250) pot_voltage_3 = 250;
+	else if (pot_voltage_3 < increment_voltage_3) pot_voltage_3 = 0;
+	else pot_voltage_3 += increment_voltage_3;
+
+	// convert pot_voltages 1 and 2 to the correct PWM duty cycles for a servo motor
 	pot_voltage_1 = (pot_voltage_1 * 12) + 3000; // multiply by 8 (conversion factor)
 	pot_voltage_2 = (pot_voltage_2 * 12) + 3000; // multiply by 8 (conversion factor)
 
