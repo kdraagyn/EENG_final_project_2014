@@ -25,11 +25,11 @@ void wait(void);
 #define WATING		 5
 
 #define RTI_CTL 	0x6A
-
+#define DC_PWM_PERIOD 1265
 const char CLOCK_FACTOR           = 3;
 const unsigned int MAX_CLK_TICKS  = 60000; 	// for a 20 ms peroid
 const unsigned int MAX_ARRAY_SIZE = 8000;	// number of writable locations
-const int RIG_MEMORY_SIZE         = 8; 		// in bytes
+const int RIG_MEMORY_SIZE         = 4; 	// in bytes
 
 char state;
 int test;
@@ -107,14 +107,14 @@ void play()
 	if (pot_voltage_3 > 0x7D) 
 	{
 		rig.dc_right.high_count = (pot_voltage_3 - 0x7D) * 10;
-		rig.dc_right.low_count = 1265 - rig.dc_right.high_count;
+		rig.dc_right.low_count = DC_PWM_PERIOD - rig.dc_right.high_count;
 		rig.dc_right.enable = 1;
 		rig.dc_left.enable = 0;
 	} 
 	else if( pot_voltage_3 < 0x7D)
 	{
 		rig.dc_left.high_count = (0x7D - pot_voltage_3) * 10;
-		rig.dc_left.low_count = 1265 - rig.dc_left.high_count;
+		rig.dc_left.low_count = DC_PWM_PERIOD - rig.dc_left.high_count;
 		rig.dc_left.enable = 1;
 		rig.dc_right.enable = 0;
 	} 
@@ -188,6 +188,7 @@ void user_control()
 {	
 	while(PTT & 0x40) // while switch is on PT5
 	{
+		while (!(CRGFLG & 0x80)) ; // wait for RTI timeout 
 		play();
 	}
 	state = READ_CONTROL;
@@ -254,9 +255,9 @@ void initialize()
 	rig.servo2.low_count =  54000;
 
 	rig.dc_right.high_count = 1;
-	rig.dc_right.low_count = 1279;
+	rig.dc_right.low_count = DC_PWM_PERIOD - 1;
 	rig.dc_left.high_count = 1;
-	rig.dc_left.low_count = 1279;
+	rig.dc_left.low_count = DC_PWM_PERIOD - 1;
 
 	// setup port PT0 for output
 	// PT0,1,2,3,7 outptus
@@ -381,7 +382,7 @@ void interrupt VectorNumber_Vtimch3 togglePT3(void)
 	{
 		TC3 += rig.dc_left.low_count;
 		PTT &= ~(0x08);
-		rig.dc_left.high_or_low = 1;;
+		rig.dc_left.high_or_low = 1;
 	}
 }
 
