@@ -24,7 +24,7 @@ void wait(void);
 #define PLAYBACK     4
 #define WATING		 5
 
-#define RTI_CTL 	0x6A
+#define RTI_CTL 	0x6B
 #define DC_PWM_PERIOD 1265
 const char CLOCK_FACTOR           = 3;
 const unsigned int MAX_CLK_TICKS  = 60000; 	// for a 20 ms peroid
